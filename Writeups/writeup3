@@ -1,0 +1,125 @@
+write-up 3
+Kyle Trinh
+
+## 1. Local SQL Database
+
+### Database Creation
+
+The script `create_bacteria_db.sh` was submitted as a SLURM job to generate a local SQLite database (`bacteria.db`) from bacterial assemblies, annotations, and metadata.
+
+```bash
+sbatch create_bacteria_db.sh
+```
+
+---
+
+### Number of Tables Created
+
+By examining `create_bacteria_db.sh` and the associated insertion scripts, the database creates **multiple tables**, including:
+
+* `assemblies`
+* `gff`
+* `proteins`
+* `clusters`
+* `metadata`
+
+Each table corresponds to a different biological data modality (genomes, gene annotations, protein sequences, clustering results, and isolate metadata).
+
+---
+
+### Why Use `try` / `except` When Inserting GFF Data?
+
+```python
+try:
+    df.to_sql(gff_table_name, conn, if_exists="append", index=False)
+    break
+except (pd.errors.DatabaseError, sqlite3.OperationalError) as e:
+    if "database is locked" in str(e):
+        time.sleep(1)
+    else:
+        raise e
+```
+
+**Explanation:**
+
+* SQLite allows only **one writer at a time**
+* During large batch inserts, the database can become temporarily locked
+* The `try/except` block:
+
+  * Catches transient locking errors
+  * Waits briefly and retries
+  * Prevents job failure due to temporary contention
+
+This pattern improves robustness for large-scale data ingestion.
+
+---
+
+### Copying Database to Cloud Storage
+
+After creation, the database was copied to:
+
+* **Google Cloud Storage** bucket `bacteria-<sunetid>`
+* **Google Drive** (dedicated folder)
+
+```bash
+rclone copy bacteria.db gcs:bacteria-<sunetid>
+rclone copy bacteria.db drive:bacteria_db
+```
+
+---
+
+## 2. Querying the Database
+
+### Runtime With and Without Indexing
+
+The script `query_bacteria_db.py` was completed and executed:
+
+```bash
+python query_bacteria_db.py --database_path bacteria.db
+```
+
+After uncommenting:
+
+```python
+db.index_record_ids()
+```
+
+**Observed behavior:**
+
+* Query runtime decreased significantly after indexing
+
+**Reason:**
+
+* Indexing creates a fast lookup structure on `record_id`
+* Avoids full table scans
+* Dramatically improves performance for repeated queries
+
+This mirrors best practices in production SQL systems.
+
+---
+
+## 3. Uploading to Google BigQuery
+
+### Role of `CHUNK_SIZE`
+
+```python
+df = pd.read_sql_query(
+    f"SELECT * FROM {table} LIMIT {CHUNK_SIZE} OFFSET {offset}",
+    conn
+)
+```
+
+**Explanation:**
+
+* Prevents loading entire tables into memory
+* Enables scalable uploads for large datasets
+* Avoids memory exhaustion
+* Allows incremental progress tracking
+
+Chunked uploads are essential when datasets exceed local RAM or when network operations are slow.
+
+---
+
+### Multi-Table BigQuery Query
+
+Once uploaded, a query

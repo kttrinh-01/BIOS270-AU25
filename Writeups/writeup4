@@ -1,0 +1,139 @@
+write-up 4
+Kyle Trinh
+
+# BIOS 270 – Pipeline Development Write-Up
+
+## 1. SLURM Pipeline Design
+
+### Adding a DESeq2 Step After Salmon Quantification
+
+In the `rnaseq_pipeline_array_depend.sh` workflow, individual RNA-seq samples are quantified using **Salmon** via a SLURM array job. To add a **DESeq2 differential expression analysis** step that runs *only after all Salmon jobs for all samples have completed*, SLURM **job dependencies** should be used.
+
+**Conceptual approach:**
+
+* Submit the Salmon quantification as a SLURM array job
+* Capture the job ID returned by `sbatch`
+* Submit a separate DESeq2 job with a dependency condition
+
+Specifically, the DESeq2 job should use:
+
+```
+--dependency=afterok:<salmon_job_id>
+```
+
+This ensures that:
+
+* DESeq2 runs **only if all array tasks complete successfully**
+* Partial or failed quantification jobs do not trigger downstream analysis
+
+This pattern enforces correctness and mirrors best practices in production HPC pipelines.
+
+---
+
+## 2. Nextflow Pipeline Extension: Salmon Indexing
+
+### Motivation
+
+The existing `rnaseq_nf` pipeline assumes a pre-built Salmon index. However, for portability and reproducibility, the pipeline should be able to **build the index automatically** when needed.
+
+---
+
+## 3. Adding a `SALMON_INDEX` Process
+
+### Process Responsibilities
+
+The `SALMON_INDEX` process should:
+
+* Take a transcriptome FASTA file as input
+* Run `salmon index`
+* Output a directory containing the Salmon index
+
+Command used:
+
+```bash
+salmon index -t <transcriptome.fa> -i <output_index_dir>
+```
+
+---
+
+## 4. Conditional Pipeline Logic
+
+The pipeline should behave differently depending on user-provided parameters in `params.yaml`.
+
+### Case 1: `index` is provided
+
+* Use the provided index path directly
+* Skip the `SALMON_INDEX` process entirely
+
+### Case 2: `index` is not provided, but `transcriptome` is provided
+
+* Run the `SALMON_INDEX` process
+* Use its output as input to the `SALMON` quantification process
+
+### Case 3: Neither `index` nor `transcriptome` is provided
+
+* Exit immediately
+* Display a clear and informative error message explaining that one of the two inputs is required
+
+---
+
+### Why This Design Works Well in Nextflow
+
+* Makes the pipeline **self-contained and reproducible**
+* Avoids unnecessary recomputation
+* Encodes assumptions explicitly in workflow logic
+* Improves usability for new users
+
+---
+
+## 5. Singularity Configuration for Nextflow
+
+The Nextflow configuration was modified to enable Singularity execution on Farmshare:
+
+```groovy
+singularity {
+  enabled = true
+  autoMounts = true
+  runOptions = "-B /farmshare/user_data/<SUNetID>"
+  cacheDir = '/farmshare/user_data/<SUNetID>/bios270/repos/containers'
+}
+```
+
+**Explanation:**
+
+* `autoMounts = true` ensures standard paths are available inside containers
+* `-B` binds the user’s scratch directory
+* `cacheDir` stores pulled container images persistently to avoid repeated downloads
+
+---
+
+## 6. Parameter Configuration
+
+The pipeline parameters were updated in `params.yaml`:
+
+```yaml
+samplesheet: "/farmshare/home/classes/bios/270/data/samplesheet.csv"
+index: "/farmshare/home/classes/bios/270/data/indexes/ecoli_transcripts_index"
+outdir: "/farmshare/user_data/<SUNetID>/bios270/data/processed_data/SRP628437_nf"
+run_deseq: true
+```
+
+This allows flexible control of input data, reference resources, and output locations without modifying pipeline code.
+
+---
+
+## 7. Running the Nextflow Pipeline
+
+Before running the workflow, all helper scripts were made executable:
+
+```bash
+chmod +x ./rnaseq_nf/bin/*
+```
+
+The pipeline was launched inside a `tmux` session using:
+
+```bash
+nextflow run rnaseq.nf \
+  -params-file configs/params.yaml \
+  -c configs/n
+```

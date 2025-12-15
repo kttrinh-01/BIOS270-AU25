@@ -1,0 +1,182 @@
+write-up 6
+Kyle Trinh
+
+## 1. Project Overview
+
+### Overarching Goal
+
+The goal of this project is to develop a machine learning framework that predicts **paralog expansion and functional redundancy** in bacterial genomes using **protein sequence embeddings** and genome-level metadata.
+
+---
+
+### Rationale
+
+Gene duplication and paralog expansion play critical roles in bacterial adaptation, antibiotic resistance, and metabolic flexibility. However, identifying which genes are likely to undergo duplication—or which paralogs retain functional similarity versus divergence—remains challenging.
+
+Recent advances in protein language models enable high-dimensional vector representations of protein sequences that capture evolutionary and structural information. By combining these embeddings with clustering and genome context, this project aims to build predictive models that can:
+
+* Identify proteins prone to duplication
+* Distinguish conserved paralogs from functionally diverged ones
+
+This project directly addresses a biologically meaningful question while leveraging modern ML techniques applied to large-scale biological data.
+
+---
+
+### Specific Aims
+
+#### **Aim 1: Predict whether a protein belongs to a paralogous gene family**
+
+* **Aim statement:** Train a supervised classifier to predict whether a protein appears in multiple copies within a genome.
+* **Expected outcomes:**
+
+  * A model that can accurately classify proteins as singleton vs. paralog-associated
+  * Identification of protein features associated with gene duplication
+* **Potential challenges:**
+
+  * Class imbalance (many singleton proteins)
+  * **Mitigation:** Use stratified sampling, class-weighted loss, and appropriate metrics (e.g., AUROC, PR-AUC)
+
+---
+
+#### **Aim 2: Quantify functional similarity among paralogs using embedding geometry**
+
+* **Aim statement:** Use unsupervised learning to measure embedding similarity among paralogs to infer functional redundancy or divergence.
+* **Expected outcomes:**
+
+  * Clustering or distance-based metrics that correlate with paralog copy number
+  * Identification of highly redundant vs. diverged paralog families
+* **Potential challenges:**
+
+  * High-dimensional embedding noise
+  * **Mitigation:** Dimensionality reduction (PCA/UMAP) and cosine similarity metrics
+
+---
+
+## 2. Data
+
+### Dataset Description
+
+* **Source:** Course-provided bacterial genome dataset (≈1,958 isolates)
+* **Data types:**
+
+  * Protein FASTA files
+  * SQLite database (`bacteria.db`) with annotations
+  * Protein embeddings stored in HDF5 format
+* **Size:**
+
+  * Millions of proteins
+  * Embedding dimension: 164
+  * Storage: tens of GB
+* **Format:**
+
+  * SQLite (relational data)
+  * HDF5 (numerical embeddings)
+
+---
+
+### Data Suitability
+
+The dataset is well-suited for ML but requires:
+
+* Mapping between protein IDs and embedding indices
+* Aggregation of protein-level data to genome-level summaries
+* Normalization and dimensionality reduction for modeling
+
+---
+
+### Storage and Data Management
+
+* **Primary storage:** Farmshare `$SCRATCH`
+* **Backups:** Google Cloud Storage (GCS)
+* **Sharing:** GCS buckets or GitHub (for processed metadata only)
+
+This strategy ensures scalability, fault tolerance, and reproducibility.
+
+---
+
+## 3. Environment
+
+### Coding Environment
+
+* Development via **code-server** and **JupyterLab** on Farmshare
+* GPU-enabled notebooks via **Google Colab** or **Vertex AI** if needed
+
+---
+
+### Dependencies
+
+Key tools and libraries include:
+
+* Python (NumPy, pandas, scikit-learn, PyTorch)
+* h5py for HDF5 access
+* matplotlib / seaborn for visualization
+* SQLite for relational queries
+
+---
+
+### Reproducibility
+
+* GitHub for version control
+* `environment.yml` for micromamba
+* Singularity containers for consistent execution
+* Fixed random seeds and documented data splits
+
+---
+
+## 4. Pipeline
+
+### Analysis Workflow
+
+1. Query protein annotations and paralog labels from SQLite
+2. Retrieve protein embeddings from HDF5
+3. Preprocess features (scaling, dimensionality reduction)
+4. Train ML models (classification or clustering)
+5. Evaluate performance and interpret results
+
+---
+
+### Scalability and Efficiency
+
+* Batch loading from HDF5 using chunked reads
+* Dictionary-based protein ID → embedding index mapping
+* Parallel data preprocessing where possible
+
+This design allows scaling to millions of proteins without exceeding memory limits.
+
+---
+
+## 5. Machine Learning
+
+### Task Definition
+
+* **Supervised learning:** Binary classification (singleton vs. paralog)
+* **Unsupervised learning:** Clustering paralogs based on embedding similarity
+
+---
+
+### Feature Representation
+
+* Protein embeddings (164D vectors)
+* Optional aggregated features (mean embedding per cluster)
+
+---
+
+### Model Selection
+
+* Logistic Regression and Random Forests as baselines
+* Gradient Boosting (XGBoost / LightGBM)
+* Optional neural networks for non-linear decision boundaries
+
+---
+
+### Generalization Strategy
+
+* Genome-level train/validation/test splits to avoid data leakage
+* Cross-validation across bacterial species
+* Regularization and early stopping
+
+---
+
+### Evaluation Metrics
+
+* **Classification:

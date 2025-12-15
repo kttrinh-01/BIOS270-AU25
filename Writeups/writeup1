@@ -1,2 +1,70 @@
 write-up 1
 Kyle Trinh
+
+1. How many SLURM jobs will be submitted?
+
+Answer:
+3 SLURM jobs will be submitted.
+
+Explanation:
+The directive
+
+#SBATCH --array=0-2
+
+
+creates a job array with task IDs 0, 1, and 2, meaning SLURM launches three independent array tasks under the same job ID.
+
+2. What is the purpose of the if statement?
+if (( i % SLURM_ARRAY_TASK_COUNT == SLURM_ARRAY_TASK_ID )); then
+    echo "$i: $value"
+fi
+
+
+Answer:
+The if statement assigns specific lines of data.txt to specific SLURM array tasks, effectively distributing the workload across the array.
+
+Explanation:
+
+i is the line index (starting from 0)
+
+SLURM_ARRAY_TASK_COUNT = 3
+
+SLURM_ARRAY_TASK_ID ∈ {0,1,2}
+
+Each line is printed only by the array task whose task ID matches i % 3.
+This ensures:
+
+Every line is processed exactly once
+
+The work is split evenly among array jobs
+
+3. What is the expected output in each *.out file?
+Contents of data.txt
+Index : Value
+0 : 12
+1 : 7
+2 : 91
+3 : 8
+4 : 27
+5 : 30
+
+Task 0 output (*_0.out)
+
+Lines where i % 3 == 0:
+
+0: 12
+3: 8
+
+Task 1 output (*_1.out)
+
+Lines where i % 3 == 1:
+
+1: 7
+4: 27
+
+Task 2 output (*_2.out)
+
+Lines where i % 3 == 2:
+
+2: 91
+5: 30

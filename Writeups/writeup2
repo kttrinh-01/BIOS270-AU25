@@ -1,0 +1,214 @@
+write-up 2
+Kyle Trinh
+
+## 1. Micromamba Environment Management
+
+### Environment Creation and Activation
+
+The provided YAML file was used to create and activate the environment:
+
+```bash
+micromamba create -f bioinfo_example.yaml
+micromamba activate bioinfo_example
+```
+
+After activation, both Python and R example scripts ran successfully, confirming that the environment was correctly configured.
+
+```bash
+python example.py
+Rscript example.R
+```
+
+---
+
+### Adding New Packages
+
+To enable calling R from Python, the `rpy2` package was installed:
+
+```bash
+micromamba install rpy2
+```
+
+---
+
+### Exporting the Updated Environment
+
+The updated environment was exported using:
+
+```bash
+micromamba env export --from-history > bioinfo_example_latest.yaml
+```
+
+**Observed changes compared to the original YAML:**
+
+* The new YAML includes `rpy2`
+* Only explicitly installed packages are listed
+* Transitive dependencies are omitted
+* The file is cleaner and more reproducible
+
+---
+
+### Micromamba Command Reference
+
+* **List all environments**
+
+```bash
+micromamba env list
+```
+
+* **List packages in a specific environment**
+
+```bash
+micromamba list -n bioinfo_example
+```
+
+* **Remove a package**
+
+```bash
+micromamba remove <package_name>
+```
+
+* **Install from a specific channel**
+
+```bash
+micromamba install -c conda-forge <package_name>
+```
+
+* **Remove an environment**
+
+```bash
+micromamba remove -n bioinfo_example --all
+```
+
+---
+
+### R and Bioconductor Packages Installed
+
+To identify R base and Bioconductor packages:
+
+```bash
+micromamba list | grep -E "r-base|bioconductor"
+```
+
+This output shows `r-base` and all installed `bioconductor-*` packages that were included in the environment.
+
+---
+
+## 2. Containers
+
+### Docker and Singularity Motivation
+
+Docker is ideal for local image building but is not permitted on shared HPC systems. Singularity (Apptainer) allows running containers without root privileges, making it suitable for Farmshare.
+
+---
+
+### Running Code Inside a Singularity Container
+
+An example Python script was created in `$SCRATCH`:
+
+```python
+print("Hello World!")
+```
+
+Attempting to run it directly failed:
+
+```bash
+singularity run bioinfo_example_latest.sif python print_hello.py
+```
+
+**Reason:** `$SCRATCH` is not visible inside the container by default.
+
+**Correct command:**
+
+```bash
+singularity run -B $SCRATCH bioinfo_example_latest.sif python print_hello.py
+```
+
+The `-B` flag binds the host directory into the container, making the script accessible.
+
+---
+
+## 3. Custom Docker Image (v2)
+
+### Base Image Selection
+
+The custom image was built on top of the existing image:
+
+```dockerfile
+FROM bioinfo_example
+```
+
+---
+
+### Additional Tools Installed
+
+* **parasail** (via pip):
+
+```dockerfile
+RUN pip install parasail
+```
+
+* **reseek** (binary install):
+
+```dockerfile
+RUN wget https://github.com/rcedgar/reseek/releases/download/v2.7/reseek-v2.7-linux-x86 \
+ && chmod +x reseek-v2.7-linux-x86 \
+ && mv reseek-v2.7-linux-x86 /usr/local/bin/reseek
+```
+
+---
+
+### Build and Push
+
+```bash
+docker build -t bioinfo_example:v2 .
+```
+
+Docker Hub:
+
+```bash
+docker tag bioinfo_example:v2 <DockerHub_Username>/bioinfo_example:v2
+docker push <DockerHub_Username>/bioinfo_example:v2
+```
+
+Stanford GitLab:
+
+```bash
+docker tag bioinfo_example:v2 scr.svc.stanford.edu/<SUNetID>/containers/bioinfo_example:v2
+docker push scr.svc.stanford.edu/<SUNetID>/containers/bioinfo_example:v2
+```
+
+---
+
+## 4. Code-Server and JupyterLab Access
+
+### SSH Port Forwarding
+
+A secure SSH tunnel was created to forward a local port to Farmshare:
+
+```bash
+ssh <SUNetID>@login.farmshare.stanford.edu -NL <PORT>:localhost:<PORT>
+```
+
+This allows browser-based access to services running on the remote cluster.
+
+---
+
+### Running Services Inside the Container
+
+**Code-server:**
+
+```bash
+singularity run -B /farmshare/user_data/<SUNetID>,/farmshare/home/classes/bios/270 \
+  bioinformatics_latest.sif \
+  code-server --bind-addr 127.0.0.1:<PORT> --auth none
+```
+
+**JupyterLab:**
+
+```bash
+singularity run -B /farmshare/user_data/<SUNetID>,/farmshare/home/classes/bios/270 \
+  bioinformatics_latest.sif \
+  jupyter lab --ip 127.0.0.1 --port <PORT> \
+  --NotebookApp
+```

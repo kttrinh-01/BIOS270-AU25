@@ -1,0 +1,133 @@
+HW1
+Kyle Trinh
+
+## Farmshare Setup
+
+I logged into Farmshare using SSH:
+
+```bash
+ssh <SUNetID>@login.farmshare.stanford.edu
+```
+
+An SSH key was generated directly on Farmshare to authenticate with GitHub:
+
+```bash
+ssh-keygen -t ed25519 -C "<SUNetID>@stanford.edu"
+```
+
+The SSH agent was started and the private key was added:
+
+```bash
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_ed25519_farmshare_<GitHub_Username>
+```
+
+The public key was then added to GitHub, and the connection was verified successfully:
+
+```bash
+ssh -T git@github.com
+```
+
+---
+
+## Working Directory
+
+All coursework was completed in the `$SCRATCH` directory on Farmshare:
+
+```bash
+export SCRATCH=/farmshare/user_data/<SUNetID>
+cd $SCRATCH
+```
+
+---
+
+## HW Part A – Conceptual Questions
+
+### Question 1
+
+**Fill in the blank:**
+
+> "Git provides a **history** of content changes."
+
+---
+
+### Question 2
+
+**Which git command shows the historical graphical representation of branching and merging events?**
+
+```bash
+git log --graph --oneline --all
+```
+
+This command displays a visual representation of the commit graph, including branches and merges.
+
+---
+
+## HW Part B – Interactive Git Tutorial
+
+The following exercises on [https://learngitbranching.js.org/](https://learngitbranching.js.org/) were completed:
+
+* **Introduction Sequence** – 4/4 modules completed
+* **Push & Pull — Git Remotes!** – 8/8 modules completed
+
+Screenshots of the “level complete” pages are included below in the submission section.
+
+---
+
+## HW Part C – GitHub Practice
+
+### Forking and Cloning
+
+The course repository was forked and cloned to Farmshare using SSH:
+
+```bash
+git clone git@github.com:<GitHub_Username>/BIOS270-AU25.git
+```
+
+---
+
+### Branching and Editing
+
+A new branch was created for HW1:
+
+```bash
+git checkout -b hw1-setup
+```
+
+The file `Writeup0.md` was edited to include my **name** and **SUNetID**.
+
+---
+
+### Committing and Pushing
+
+Changes were committed in two logical commits and pushed to the forked repository:
+
+```bash
+git commit -m "Update name and SUNetID"
+git commit -m "Complete HW1 submission"
+git push origin hw1-setup
+```
+
+---
+
+### Pull Request
+
+A pull request was opened from `hw1-setup` into my fork’s `main` branch and successfully merged.
+
+The URL of this Markdown file on the `main` branch was submitted to Canvas as required.
+
+---
+
+## HW Part D – Jira (Optional)
+
+A Jira project named **BIOS270** was created using the Kanban template. Jira was connected to GitHub, and a task named **HW1** was created.
+
+A branch containing the task ID was created:
+
+```bash
+git checkout -b BIOS-1-hw1
+```
+
+Commits and the pull request included the task ID in their messages, allowing Jira to automatically link development activity to the task.
+
+A screenshot showing the PR linked to the Jira task is included in the submission section.

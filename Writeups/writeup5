@@ -1,0 +1,169 @@
+write-up 5
+Kyle Trinh
+
+## Input Data
+
+* *E. coli*:
+  `/farmshare/home/classes/bios/270/data/project1/SRR33251869.fastq`
+
+* *K. pneumoniae*:
+  `/farmshare/home/classes/bios/270/data/project1/SRR33251867.fastq`
+
+All analyses were performed on Farmshare using Singularity containers provided for the course.
+
+---
+
+## Step 1: De Novo Genome Assembly (Flye)
+
+Because high-quality reference genomes may not exist for these strains and novel paralogs are of interest, genomes were assembled **de novo** using **Flye**, which is optimized for long-read sequencing data.
+
+**Container:**
+
+```
+/farmshare/home/classes/bios/270/envs/bioinformatics_latest.sif
+```
+
+**Command (example for *E. coli*):**
+
+```bash
+flye --nano-raw SRR33251869.fastq \
+     --out-dir ecoli_flye_out \
+     --threads 32
+```
+
+**Key output:**
+
+```
+ecoli_flye_out/assembly.fasta
+```
+
+This FASTA file contains the assembled genome and serves as the input for downstream annotation.
+
+---
+
+## Step 2: Genome Annotation (Bakta)
+
+The assembled genome was annotated using **Bakta**, which predicts protein-coding genes and functional annotations in bacterial genomes.
+
+**Container:**
+
+```
+/farmshare/home/classes/bios/270/envs/bakta_1.8.2--pyhdfd78af_0.sif
+```
+
+**Command (example for *E. coli*):**
+
+```bash
+bakta \
+  --db /farmshare/home/classes/bios/270/data/archive/bakta_db/db \
+  --output ecoli_bakta_out/ \
+  ecoli_flye_out/assembly.fasta \
+  --force
+```
+
+**Key output:**
+
+```
+ecoli_bakta_out/assembly.faa
+```
+
+The `.faa` file contains all predicted protein sequences and is used for paralog detection.
+
+---
+
+## Step 3: Protein Clustering (MMseqs2)
+
+To identify paralogous genes, predicted proteins were clustered using **MMseqs2** based on sequence similarity. Proteins grouped into the same cluster represent putative paralogs.
+
+**Command (example for *E. coli*):**
+
+```bash
+mmseqs easy-cluster \
+  ecoli_bakta_out/assembly.faa \
+  ecoli_prot90 \
+  tmp \
+  --min-seq-id 0.9 \
+  -c 0.8 \
+  --cov-mode 1 \
+  -s 7 \
+  --threads 32
+```
+
+**Key output:**
+
+```
+ecoli_prot90_cluster.tsv
+```
+
+This TSV file contains two columns:
+
+* `cluster_id`: representative protein of the cluster
+* `protein_id`: individual protein identifiers belonging to the cluster
+
+Clusters containing more than one protein indicate paralogous gene families.
+
+---
+
+## Step 4: Summarization and Visualization
+
+A custom Python script was written to integrate protein annotations with clustering results.
+
+### Script Inputs
+
+* `assembly.faa` (protein FASTA from Bakta)
+* `*_cluster.tsv` (MMseqs2 clustering output)
+
+### Processing Logic
+
+1. Parse protein headers in `assembly.faa` to extract `protein_id` and `protein_name`
+2. Group proteins by `cluster_id`
+3. Identify clusters with more than one protein
+4. Compute `copy_number` as the number of proteins per cluster
+
+### Outputs
+
+#### 1. TSV Summary File
+
+A tab-separated file with columns:
+
+* `protein_id`
+* `protein_name`
+* `copy_number`
+
+This file lists only proteins that occur in paralogous clusters.
+
+#### 2. Visualization
+
+A bar plot (PNG format) showing the **top 10 most frequent paralogs** ranked by copy number across the genome.
+
+These visualizations provide an intuitive overview of gene duplication patterns in each bacterial strain.
+
+---
+
+## Results and Interpretation
+
+* Both *E. coli* and *K. pneumoniae* genomes contained multiple paralogous protein families
+* Highly duplicated proteins often corresponded to:
+
+  * Transporters
+  * Mobile-element-associated proteins
+  * Stress response or metabolic genes
+
+Such duplications may reflect adaptive strategies or recent evolutionary events.
+
+---
+
+## Computational Resources
+
+| Step | Tool          | Threads | RAM (GB) | Typical Runtime |
+| ---- | ------------- | ------- | -------- | --------------- |
+| 1    | Flye          | 16–32   | 32–64    | 1–2 hours       |
+| 2    | Bakta         | 8–16    | 8–16     | 20–40 minutes   |
+| 3    | MMseqs2       | 8–32    | 1–4      | < 5 minutes     |
+| 4    | Custom Script | 1–4     | 1–4      | < 5 minutes     |
+
+---
+
+## Conclusion
+
+This project demonstrates a complete, reproducible genomics workflow for paralog identification starting from raw long-read sequencing data. By integrating de novo assembly, annotation, clustering, and custom analysis, the pipeline enables systematic exploration of gene duplication in bacterial genomes and provides a foundation for more advanced comparative or functional studies.
